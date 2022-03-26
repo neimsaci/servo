@@ -164,3 +164,37 @@ pub struct PendingImage {
 pub struct HTMLMediaData {
     pub current_frame: Option<(webrender_api::ImageKey, i32, i32)>,
 }
+
+/*/// This trait allows creating a `ScriptThread` without depending on the `script`
+/// crate.
+pub trait ScriptThreadFactory {
+    /// Type of message sent from script to layout.
+    type Message;
+
+    /// Create a `ScriptThread`.
+    fn create<LTF: LayoutThreadFactory<Message = Self::Message>>(
+        state: script_traits::InitialScriptState,
+        load_data: script_traits::LoadData,
+        profile_script_events: bool,
+        print_pwm: bool,
+        relayout_event: bool,
+        prepare_for_screenshot: bool,
+        unminify_js: bool,
+        local_script_source: Option<String>,
+        userscripts_path: Option<String>,
+        headless: bool,
+        replace_surrogates: bool,
+        user_agent: Cow<'static, str>,
+        layout_init: script_traits::LayoutInit,
+    ) /*-> (Sender<Self::Message>, Receiver<Self::Message>)*/;
+}*/
+
+
+/*pub trait Layout {
+    fn process(&mut self, msg: message::Msg);
+    fn rpc(&self) -> &dyn rpc::LayoutRPC;
+}*/
+
+/*pub trait LayoutFactory {
+    fn new() -> Box<Layout>;
+}*/

@@ -129,6 +129,10 @@ impl<'ln> ServoLayoutNode<'ln> {
         ServoLayoutNode::from_layout_js(LayoutDom::from_trusted_node_address(*address))
     }
 
+    pub fn new_safe(node: &'ln Node) -> Self {
+        ServoLayoutNode::from_layout_js(LayoutDom::from(node))
+    }
+
     fn script_type_id(&self) -> NodeTypeId {
         self.node.type_id_for_layout()
     }
@@ -196,6 +200,10 @@ impl<'ln> TNode for ServoLayoutNode<'ln> {
     type ConcreteDocument = ServoLayoutDocument<'ln>;
     type ConcreteElement = ServoLayoutElement<'ln>;
     type ConcreteShadowRoot = ServoShadowRoot<'ln>;
+
+    fn children_count(&self) -> u32 {
+        self.node.children_count()
+    }
 
     fn parent_node(&self) -> Option<Self> {
         self.node
@@ -1024,7 +1032,7 @@ impl<'ln> ServoThreadSafeLayoutNode<'ln> {
 
     /// Returns the interior of this node as a `LayoutDom`. This is highly unsafe for layout to
     /// call and as such is marked `unsafe`.
-    unsafe fn get_jsmanaged(&self) -> LayoutDom<'ln, Node> {
+    pub(crate) unsafe fn get_jsmanaged(&self) -> LayoutDom<'ln, Node> {
         self.node.get_jsmanaged()
     }
 }

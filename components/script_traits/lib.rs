@@ -28,7 +28,7 @@ use crate::transferable::MessagePortImpl;
 use crate::webdriver_msg::{LoadStatus, WebDriverScriptCommand};
 use bluetooth_traits::BluetoothRequest;
 use canvas_traits::webgl::WebGLPipeline;
-use crossbeam_channel::{Receiver, RecvTimeoutError, Sender};
+use crossbeam_channel::{RecvTimeoutError, Sender};
 use devtools_traits::{DevtoolScriptControlMsg, ScriptToDevtoolsControlMsg, WorkerId};
 use embedder_traits::EventLoopWaker;
 use euclid::{default::Point2D, Length, Rect, Scale, Size2D, UnknownUnit, Vector2D};
@@ -408,6 +408,10 @@ pub enum ConstellationControlMsg {
     MediaSessionAction(PipelineId, MediaSessionActionType),
     /// Notifies script thread that WebGPU server has started
     SetWebGPUPort(IpcReceiver<WebGPUMsg>),
+    ///
+    ForLayoutFromConstellation(LayoutControlMsg, PipelineId),
+    ///
+    ForLayoutFromFontCache(PipelineId),
 }
 
 impl fmt::Debug for ConstellationControlMsg {
@@ -446,6 +450,8 @@ impl fmt::Debug for ConstellationControlMsg {
             ExitFullScreen(..) => "ExitFullScreen",
             MediaSessionAction(..) => "MediaSessionAction",
             SetWebGPUPort(..) => "SetWebGPUPort",
+            ForLayoutFromConstellation(..) => "ForLayoutFromConstellation",
+            ForLayoutFromFontCache(..) => "ForLayoutFromFontCache",
         };
         write!(formatter, "ConstellationControlMsg::{}", variant)
     }
@@ -691,26 +697,34 @@ pub struct InitialScriptState {
     pub event_loop_waker: Option<Box<dyn EventLoopWaker>>,
 }
 
-/// This trait allows creating a `ScriptThread` without depending on the `script`
-/// crate.
-pub trait ScriptThreadFactory {
-    /// Type of message sent from script to layout.
-    type Message;
-    /// Create a `ScriptThread`.
-    fn create(
-        state: InitialScriptState,
-        load_data: LoadData,
-        profile_script_events: bool,
-        print_pwm: bool,
-        relayout_event: bool,
-        prepare_for_screenshot: bool,
-        unminify_js: bool,
-        local_script_source: Option<String>,
-        userscripts_path: Option<String>,
-        headless: bool,
-        replace_surrogates: bool,
-        user_agent: Cow<'static, str>,
-    ) -> (Sender<Self::Message>, Receiver<Self::Message>);
+#[allow(missing_docs)]
+pub struct LayoutInit {
+    pub id: PipelineId,
+    pub top_level_browsing_context_id: TopLevelBrowsingContextId,
+    pub url: ServoUrl,
+    pub is_iframe: bool,
+    //pub chan: (Sender<Self::Message>, Receiver<Self::Message>),
+    pub pipeline_port: IpcReceiver<LayoutControlMsg>,
+    pub background_hang_monitor: Box<dyn BackgroundHangMonitorRegister>,
+    pub constellation_chan: IpcSender<LayoutMsg>,
+    pub script_chan: IpcSender<ConstellationControlMsg>,
+    pub image_cache: Arc<dyn ImageCache>,
+    pub font_cache_thread: gfx::font_cache_thread::FontCacheThread,
+    pub time_profiler_chan: profile_traits::time::ProfilerChan,
+    pub mem_profiler_chan: profile_traits::mem::ProfilerChan,
+    pub webrender_api_sender: WebrenderIpcSender,
+    //pub paint_time_metrics: metrics::PaintTimeMetrics,
+    pub busy: Arc<AtomicBool>,
+    pub load_webfonts_synchronously: bool,
+    pub window_size: WindowSizeData,
+    pub dump_display_list: bool,
+    pub dump_display_list_json: bool,
+    pub dump_style_tree: bool,
+    pub dump_rule_tree: bool,
+    pub relayout_event: bool,
+    pub nonincremental_layout: bool,
+    pub trace_layout: bool,
+    pub dump_flow_tree: bool,
 }
 
 /// This trait allows creating a `ServiceWorkerManager` without depending on the `script`

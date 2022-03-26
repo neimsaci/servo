@@ -14,7 +14,7 @@ use crate::dom::node::{self, Node, VecPreOrderInsertionHelper};
 use crate::dom::window::Window;
 use crate::stylesheet_set::StylesheetSetRef;
 use euclid::default::Point2D;
-use script_layout_interface::message::{NodesFromPointQueryType, QueryMsg};
+use crate::layout_integration::reflow::{NodesFromPointQueryType, QueryMsg};
 use script_traits::UntrustedNodeAddress;
 use servo_arc::Arc;
 use servo_atoms::Atom;
@@ -100,7 +100,7 @@ impl DocumentOrShadowRoot {
             return vec![];
         };
 
-        self.window.layout().nodes_from_point_response()
+        self.window.layout_rpc().unwrap().nodes_from_point_response()
     }
 
     #[allow(unsafe_code)]

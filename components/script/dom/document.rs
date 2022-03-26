@@ -103,6 +103,7 @@ use crate::dom::wheelevent::WheelEvent;
 use crate::dom::window::{ReflowReason, Window};
 use crate::dom::windowproxy::WindowProxy;
 use crate::fetch::FetchCanceller;
+use crate::layout_integration::Layout;
 use crate::realms::{AlreadyInRealm, InRealm};
 use crate::script_runtime::JSContext;
 use crate::script_runtime::{CommonScriptMsg, ScriptThreadEventCategory};
@@ -140,8 +141,8 @@ use num_traits::ToPrimitive;
 use percent_encoding::percent_decode;
 use profile_traits::ipc as profile_ipc;
 use profile_traits::time::{TimerMetadata, TimerMetadataFrameType, TimerMetadataReflowType};
-use script_layout_interface::message::{Msg, PendingRestyle, ReflowGoal};
-use script_layout_interface::TrustedNodeAddress;
+use script_layout_interface::message::Msg;
+use crate::layout_integration::reflow::{PendingRestyle, ReflowGoal};
 use script_traits::{AnimationState, DocumentActivity, MouseButton, MouseEventType};
 use script_traits::{
     MsDuration, ScriptMsg, TouchEventType, TouchId, UntrustedNodeAddress, WheelDelta,
@@ -811,10 +812,9 @@ impl Document {
         self.quirks_mode.set(mode);
 
         if mode == QuirksMode::Quirks {
-            match self.window.layout_chan() {
-                Some(chan) => chan.send(Msg::SetQuirksMode(mode)).unwrap(),
-                None => warn!("Layout channel unavailable"),
-            }
+            let _ = self.window.layout(Box::new(move |layout: &mut dyn Layout| {
+                layout.process(Msg::SetQuirksMode(mode))
+            }));
         }
     }
 
@@ -3835,15 +3835,14 @@ impl Document {
             })
             .cloned();
 
-        match self.window.layout_chan() {
-            Some(chan) => chan
-                .send(Msg::AddStylesheet(
-                    sheet.clone(),
-                    insertion_point.as_ref().map(|s| s.sheet.clone()),
-                ))
-                .unwrap(),
-            None => return warn!("Layout channel unavailable"),
-        }
+        let sheet2 = sheet.clone();
+        let insertion_point2 = insertion_point.clone();
+        let _ = self.window.layout(Box::new(move |layout: &mut dyn Layout| {
+            layout.process(Msg::AddStylesheet(
+                sheet2,
+                insertion_point2.as_ref().map(|s| s.sheet.clone()),
+            ))
+        }));
 
         DocumentOrShadowRoot::add_stylesheet(
             owner,
@@ -3857,10 +3856,10 @@ impl Document {
     /// Remove a stylesheet owned by `owner` from the list of document sheets.
     #[allow(unrooted_must_root)] // Owner needs to be rooted already necessarily.
     pub fn remove_stylesheet(&self, owner: &Element, s: &Arc<Stylesheet>) {
-        match self.window.layout_chan() {
-            Some(chan) => chan.send(Msg::RemoveStylesheet(s.clone())).unwrap(),
-            None => return warn!("Layout channel unavailable"),
-        }
+        let s2 = s.clone();
+        let _ = self.window.layout(Box::new(|layout: &mut dyn Layout| {
+            layout.process(Msg::RemoveStylesheet(s2))
+        }));
 
         DocumentOrShadowRoot::remove_stylesheet(
             owner,
@@ -3945,7 +3944,7 @@ impl Document {
     }
 
     #[allow(unrooted_must_root)]
-    pub fn drain_pending_restyles(&self) -> Vec<(TrustedNodeAddress, PendingRestyle)> {
+    pub fn drain_pending_restyles(&self) -> Vec<(DomRoot<Node>, PendingRestyle)> {
         self.pending_restyles
             .borrow_mut()
             .drain()
@@ -3955,7 +3954,7 @@ impl Document {
                     return None;
                 }
                 node.note_dirty_descendants();
-                Some((node.to_trusted_node_address(), restyle))
+                Some((DomRoot::from_ref(node), restyle))
             })
             .collect()
     }
